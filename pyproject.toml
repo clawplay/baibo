@@ -1,5 +1,5 @@
 [project]
-name = "nanobot-ai"
+name = "baibo-ai"
 version = "0.1.4.post2"
 description = "A lightweight personal AI assistant framework"
 requires-python = ">=3.11"
@@ -42,6 +42,8 @@ dependencies = [
     "prompt-toolkit>=3.0.50,<4.0.0",
     "mcp>=1.26.0,<2.0.0",
     "json-repair>=0.57.0,<1.0.0",
+    "psycopg[pool]>=3.3.2",
+    "aiohttp>=3.9.0",
 ]
 
 [project.optional-dependencies]
@@ -49,6 +51,10 @@ matrix = [
     "matrix-nio[e2e]>=0.25.2",
     "mistune>=3.0.0,<4.0.0",
     "nh3>=0.2.17,<1.0.0",
+]
+postgres = [
+    "psycopg[binary]>=3.1.0",
+    "psycopg-pool>=3.1.0",
 ]
 dev = [
     "pytest>=9.0.0,<10.0.0",
@@ -58,6 +64,7 @@ dev = [
 
 [project.scripts]
 nanobot = "nanobot.cli.commands:app"
+baibo = "nanobot.cli.commands:app"
 
 [build-system]
 requires = ["hatchling"]
