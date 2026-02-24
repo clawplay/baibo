@@ -1,14 +1,15 @@
-"""Memory system for persistent agent memory."""
+"""Memory system for persistent agent memory (file backend)."""
 
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from nanobot.utils.helpers import ensure_dir
+from nanobot.utils.helpers import ensure_dir, today_date
 
 if TYPE_CHECKING:
     from nanobot.providers.base import LLMProvider
@@ -43,28 +44,103 @@ _SAVE_MEMORY_TOOL = [
 
 
 class MemoryStore:
-    """Two-layer memory: MEMORY.md (long-term facts) + HISTORY.md (grep-searchable log)."""
+    """
+    File-based memory backend.
+
+    Supports daily notes (memory/YYYY-MM-DD.md), long-term memory (MEMORY.md),
+    and HISTORY.md (grep-searchable log from consolidation).
+    All methods are async to satisfy the MemoryBackend protocol.
+    """
 
     def __init__(self, workspace: Path):
+        self.workspace = workspace
         self.memory_dir = ensure_dir(workspace / "memory")
         self.memory_file = self.memory_dir / "MEMORY.md"
         self.history_file = self.memory_dir / "HISTORY.md"
 
-    def read_long_term(self) -> str:
+    async def initialize(self) -> None:
+        """No-op for file backend."""
+
+    async def close(self) -> None:
+        """No-op for file backend."""
+
+    def _get_today_file(self) -> Path:
+        """Get path to today's memory file."""
+        return self.memory_dir / f"{today_date()}.md"
+
+    async def read_today(self) -> str:
+        """Read today's memory notes."""
+        today_file = self._get_today_file()
+        if today_file.exists():
+            return today_file.read_text(encoding="utf-8")
+        return ""
+
+    async def append_today(self, content: str) -> None:
+        """Append content to today's memory notes."""
+        today_file = self._get_today_file()
+
+        if today_file.exists():
+            existing = today_file.read_text(encoding="utf-8")
+            content = existing + "\n" + content
+        else:
+            header = f"# {today_date()}\n\n"
+            content = header + content
+
+        today_file.write_text(content, encoding="utf-8")
+
+    async def read_long_term(self) -> str:
+        """Read long-term memory (MEMORY.md)."""
         if self.memory_file.exists():
             return self.memory_file.read_text(encoding="utf-8")
         return ""
 
-    def write_long_term(self, content: str) -> None:
+    async def write_long_term(self, content: str) -> None:
+        """Write to long-term memory (MEMORY.md)."""
+        self.memory_file.write_text(content, encoding="utf-8")
+
+    async def get_recent_memories(self, days: int = 7) -> str:
+        """Get memories from the last N days."""
+        memories = []
+        today = datetime.now().date()
+
+        for i in range(days):
+            date = today - timedelta(days=i)
+            date_str = date.strftime("%Y-%m-%d")
+            file_path = self.memory_dir / f"{date_str}.md"
+
+            if file_path.exists():
+                content = file_path.read_text(encoding="utf-8")
+                memories.append(content)
+
+        return "\n\n---\n\n".join(memories)
+
+    async def get_memory_context(self) -> str:
+        """Get memory context for the agent."""
+        parts = []
+
+        long_term = await self.read_long_term()
+        if long_term:
+            parts.append("## Long-term Memory\n" + long_term)
+
+        today = await self.read_today()
+        if today:
+            parts.append("## Today's Notes\n" + today)
+
+        return "\n\n".join(parts) if parts else ""
+
+    # ---- Legacy consolidation (used by upstream agent loop) ----
+
+    def _read_long_term_sync(self) -> str:
+        if self.memory_file.exists():
+            return self.memory_file.read_text(encoding="utf-8")
+        return ""
+
+    def _write_long_term_sync(self, content: str) -> None:
         self.memory_file.write_text(content, encoding="utf-8")
 
     def append_history(self, entry: str) -> None:
         with open(self.history_file, "a", encoding="utf-8") as f:
             f.write(entry.rstrip() + "\n\n")
-
-    def get_memory_context(self) -> str:
-        long_term = self.read_long_term()
-        return f"## Long-term Memory\n{long_term}" if long_term else ""
 
     async def consolidate(
         self,
@@ -101,7 +177,7 @@ class MemoryStore:
             tools = f" [tools: {', '.join(m['tools_used'])}]" if m.get("tools_used") else ""
             lines.append(f"[{m.get('timestamp', '?')[:16]}] {m['role'].upper()}{tools}: {m['content']}")
 
-        current_memory = self.read_long_term()
+        current_memory = self._read_long_term_sync()
         prompt = f"""Process this conversation and call the save_memory tool with your consolidation.
 
 ## Current Long-term Memory
@@ -140,7 +216,7 @@ class MemoryStore:
                 if not isinstance(update, str):
                     update = json.dumps(update, ensure_ascii=False)
                 if update != current_memory:
-                    self.write_long_term(update)
+                    self._write_long_term_sync(update)
 
             session.last_consolidated = 0 if archive_all else len(session.messages) - keep_count
             logger.info("Memory consolidation done: {} messages, last_consolidated={}", len(session.messages), session.last_consolidated)

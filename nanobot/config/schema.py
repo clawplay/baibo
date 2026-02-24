@@ -184,6 +184,46 @@ class QQConfig(Base):
     allow_from: list[str] = Field(default_factory=list)  # Allowed user openids (empty = public access)
 
 
+class OpenAPIConfig(Base):
+    """OpenAI-Compatible HTTP Server channel configuration."""
+
+    enabled: bool = False
+    host: str = "0.0.0.0"
+    port: int = 8080
+    api_keys: list[str] = Field(default_factory=list)  # Allowed API keys (empty = no auth)
+    allow_from: list[str] = Field(default_factory=list)  # Allowed user identifiers
+    model_name: str = "nanobot"  # Model name exposed to clients
+    timeout: float = 120.0  # Request timeout in seconds
+
+
+class PostgresConfig(Base):
+    """PostgreSQL memory backend configuration."""
+
+    dsn: str = ""
+    pool_min_size: int = 2
+    pool_max_size: int = 10
+
+
+class EmbeddingConfig(Base):
+    """Embedding model configuration for semantic search."""
+
+    model: str = "openai/text-embedding-3-small"
+    dimensions: int = 1536
+    base_url: str = ""
+    key: str = ""
+
+
+class MemoryConfig(Base):
+    """Memory system configuration."""
+
+    backend: str = "file"  # "file" or "postgres"
+    postgres: PostgresConfig = Field(default_factory=PostgresConfig)
+    embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
+    semantic_search_limit: int = 10
+    queue_poll_interval: float = 2.0
+    auto_ingest: bool = True  # auto-ingest conversation turns into memory
+
+
 class ChannelsConfig(Base):
     """Configuration for chat channels."""
 
@@ -199,6 +239,7 @@ class ChannelsConfig(Base):
     slack: SlackConfig = Field(default_factory=SlackConfig)
     qq: QQConfig = Field(default_factory=QQConfig)
     matrix: MatrixConfig = Field(default_factory=MatrixConfig)
+    openapi: OpenAPIConfig = Field(default_factory=OpenAPIConfig)
 
 
 class AgentDefaults(Base):
@@ -312,6 +353,7 @@ class Config(BaseSettings):
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
 
     @property
     def workspace_path(self) -> Path:
