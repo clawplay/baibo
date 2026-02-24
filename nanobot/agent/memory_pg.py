@@ -39,6 +39,8 @@ class PostgresMemoryStore:
 
     async def initialize(self) -> None:
         """Connect pool and ensure schema exists."""
+        if self._pool is not None:
+            return
         from psycopg_pool import AsyncConnectionPool
 
         self._pool = AsyncConnectionPool(

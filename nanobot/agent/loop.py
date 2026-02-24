@@ -266,6 +266,7 @@ class AgentLoop:
         """Run the agent loop, dispatching messages as tasks to stay responsive to /stop."""
         self._running = True
         await self._connect_mcp()
+        await self._memory.initialize()
         logger.info("Agent loop started")
 
         while self._running:
@@ -320,7 +321,8 @@ class AgentLoop:
                 ))
 
     async def close_mcp(self) -> None:
-        """Close MCP connections."""
+        """Close MCP connections and memory backend."""
+        await self._memory.close()
         if self._mcp_stack:
             try:
                 await self._mcp_stack.aclose()
@@ -517,6 +519,7 @@ class AgentLoop:
     ) -> str:
         """Process a message directly (for CLI or cron usage)."""
         await self._connect_mcp()
+        await self._memory.initialize()
         msg = InboundMessage(channel=channel, sender_id="user", chat_id=chat_id, content=content)
         response = await self._process_message(msg, session_key=session_key, on_progress=on_progress)
         return response.content if response else ""
