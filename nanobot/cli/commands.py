@@ -255,7 +255,7 @@ def _make_provider(config: Config):
     spec = find_by_name(provider_name)
     if not model.startswith("bedrock/") and not (p and p.api_key) and not (spec and spec.is_oauth):
         console.print("[red]Error: No API key configured.[/red]")
-        console.print("Set one in ~/.nanobot/config.json under providers section")
+        console.print("Set one in ~/.nanobot/config.json under providers section or execute `baibo onboard`")
         raise typer.Exit(1)
 
     return LiteLLMProvider(
