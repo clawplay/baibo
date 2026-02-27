@@ -51,6 +51,7 @@ class DingTalkConfig(Base):
     client_id: str = ""  # AppKey
     client_secret: str = ""  # AppSecret
     allow_from: list[str] = Field(default_factory=list)  # Allowed staff_ids
+    reply_mode: Literal["text", "ai_card"] = "text"  # "ai_card" enables streaming AI card
 
 
 class DiscordConfig(Base):
